@@ -58,15 +58,15 @@ module SpreeGoogleMerchant
         generate_xml file
       end
 
+      Zlib::GzipWriter.open("#{path}.gz") do |gz|
+        gz.mtime = File.mtime(path)
+        gz.orig_name = path
+        gz.write IO.binread(path)
+      end
     end
 
     def generate_and_transfer_store
-      delete_xml_if_exists
-
-      File.open(path, 'w') do |file|
-        generate_xml file
-      end
-
+      generate_store
       transfer_xml
       cleanup_xml
     end
@@ -76,33 +76,35 @@ module SpreeGoogleMerchant
     end
 
     def filename
-      "google_merchant_v#{@store.try(:code)}.xml"
+      domain = (@store.try(:code)) ? "_#{@store.try(:code)}" : ''
+      "google_merchant#{domain}.xml"
     end
 
     def delete_xml_if_exists
       File.delete(path) if File.exists?(path)
+      File.delete("#{path}.gz") if File.exists?("#{path}.gz")
     end
 
     def validate_record(product)
-      return false if product.images.length == 0 && product.imagesize == 0 rescue true
-      return false if product.google_merchant_title.nil?
-      return false if product.google_merchant_product_category.nil?
-      return false if product.google_merchant_availability.nil?
-      return false if product.google_merchant_price.nil?
-      #return false if product.google_merchant_description.nil?
-      return false if product.google_merchant_brand.nil?
-      return false if product.google_merchant_gtin.nil?
-      return false if product.google_merchant_mpn.nil?
-      #return false if product.google_merchant_shipping_weight.nil?
-      return false unless validate_upc(product.upc)
+      return false if product.images.length == 0 || product.imagesize == 0 rescue true
+      return false if product.google_merchant_title.blank?
+      return false if product.google_merchant_product_category.blank?
+      return false if product.google_merchant_availability.blank?
+      return false if product.google_merchant_price.blank?
+      return false if product.google_merchant_description.blank?
+      return false if product.google_merchant_brand.blank?
+      return false if product.google_merchant_gtin.blank?
+      return false if product.google_merchant_mpn.blank?
+      return false if product.google_merchant_shipping_weight.blank?
+      return false unless validate_upc(product.master.gtin)
 
-      unless product.google_merchant_sale_price.nil?
-        return false if product.google_merchant_sale_price_effective.nil?
+      unless product.google_merchant_sale_price.blank?
+        return false if product.google_merchant_sale_price_effective.blank?
       end
 
       true
-    end    
-    
+    end
+
     def generate_xml output
       xml = Builder::XmlMarkup.new(:target => output)
       xml.instruct!
@@ -126,7 +128,7 @@ module SpreeGoogleMerchant
       ftp = Net::FTP.new('uploads.google.com')
       ftp.passive = true
       ftp.login(Spree::GoogleMerchant::Config[:ftp_username], Spree::GoogleMerchant::Config[:ftp_password])
-      ftp.put(path, filename)
+      ftp.put("#{path}.gz", "#{filename}.gz")
       ftp.quit
     end
 
@@ -136,7 +138,7 @@ module SpreeGoogleMerchant
 
     def build_product(xml, product)
       xml.item do
-        xml.tag!('link', product_url(product.permalink, :host => domain))
+        xml.tag!('link', product_url(product.google_merchant_permalink, :host => domain))
         build_images(xml, product)
 
         GOOGLE_MERCHANT_ATTR_MAP.each do |k, v|
@@ -159,7 +161,7 @@ module SpreeGoogleMerchant
     end
 
     def image_url image
-      base_url = image.attachment.url(:large)
+      base_url = image.attachment.url(:product)
       base_url = "#{domain}/#{base_url}" unless Spree::Config[:use_s3]
 
       base_url
@@ -177,25 +179,11 @@ module SpreeGoogleMerchant
     end
 
     # <g:adwords_labels>
-    def build_adwords_labels(xml, product)
+    def build_adwords_labels(xml, product)     # <g:adwords_labels>
+      return if product.property(:_gm_adwords_label).nil?
 
-      labels = []
-
-      product.taxons.first.self_and_ancestors.each do |taxon|
-        labels << taxon.name
-      end
-
-      list = [:category,:group,:type,:theme,:keyword,:color,:shape,:brand,:size,:material,:for,:agegroup]
-      list.each do |prop|
-        if labels.length < 10 then
-          value = product.property(prop)
-          labels << value if value.present?
-        end
-      end
-
-
-
-      labels.slice(0..9).each do |l|
+      labels = self.property(:_gm_adwords_label).to_a
+      labels.each do |l|
         xml.tag!('g:adwords_labels', l)
       end
     end

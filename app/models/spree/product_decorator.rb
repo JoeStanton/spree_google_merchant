@@ -2,6 +2,10 @@ module Spree
   Product.class_eval do
     scope :google_merchant_scope, includes(:taxons, {:master => :images})
 
+    def google_merchant_permalink
+      self.permalink
+    end
+
     def google_merchant_description
       self.description
     end
@@ -12,7 +16,7 @@ module Spree
 
     # <g:google_product_category> Apparel & Accessories > Clothing > Dresses (From Google Taxon Map)
     def google_merchant_product_category
-      self.property(:gm_product_category) || Spree::GoogleMerchant::Config[:product_category]
+      self.property(:_gm_product_category) || Spree::GoogleMerchant::Config[:product_category]
     end
 
     def google_merchant_product_type
@@ -27,11 +31,7 @@ module Spree
 
     # <g:availability> in stock | available for order | out of stock | preorder
     def google_merchant_availability
-      self.master.stock_items.first.count_on_hand > 0 ? 'in stock' : 'out of stock'
-    end
-
-    def google_merchant_quantity
-      self.master.stock_items.first.count_on_hand
+      self.total_on_hand > 0 ? 'in stock' : 'out of stock'
     end
 
     def google_merchant_image_link
@@ -51,14 +51,14 @@ module Spree
 
     # <g:sale_price> 15.00 USD
     def google_merchant_sale_price
-      unless self.property(:gm_sale_price).nil?
-        format("%.2f %s", self.property(:gm_sale_price), self.currency).to_s
+      unless self.property(:_gm_sale_price).nil?
+        format("%.2f %s", self.property(:_gm_sale_price), self.currency).to_s
       end
     end
 
     # <g:sale_price_effective_date> 2011-03-01T13:00-0800/2011-03-11T15:30-0800
     def google_merchant_sale_price_effective_date
-      unless self.property(:gm_sale_price_effective).nil?
+      unless self.property(:_gm_sale_price_effective).nil?
         return # TODO
       end
     end
@@ -79,31 +79,31 @@ module Spree
 
     # <g:gender> Male, Female, Unisex
     def google_merchant_gender
-      value = self.property(:gender)
+      value = self.property(:_gm_gender)
       return unless value.present?
       value.gsub('Girls','Female').gsub('Womens','Female').gsub('Boys','Male').gsub('Mens','Male')
     end
 
     # <g:age_group> Adult, Kids
     def google_merchant_age_group
-      value = self.property(:agegroup)
+      value = self.property(:_gm_age_group)
       return unless value.present?
       value.gsub('Adults','Adult')
     end
 
     # <g:color>
     def google_merchant_color
-      self.property(:color)
+      self.property(:_gm_color)
     end
 
     # <g:size>
     def google_merchant_size
-      self.property(:size)
+      self.property(:_gm_size)
     end
 
     # <g:adwords_grouping> single text value
     def google_merchant_adwords_group
-      self.property(:gm_adwords_group)
+      self.property(:_gm_adwords_group)
     end
 
     # <g:shipping_weight> # lb, oz, g, kg.
@@ -115,7 +115,7 @@ module Spree
 
     # <g:adult> TRUE | FALSE
     def google_merchant_adult
-      self.property(:gm_adult) unless self.property(:gm_adult).nil?
+      self.property(:_gm_adult) unless self.property(:_gm_adult).nil?
     end
 
   end
