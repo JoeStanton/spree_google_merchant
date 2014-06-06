@@ -86,23 +86,20 @@ module SpreeGoogleMerchant
     end
 
     def validate_record(product)
-      return false if product.images.length == 0 || product.imagesize == 0 rescue true
-      return false if product.google_merchant_title.blank?
-      return false if product.google_merchant_product_category.blank?
-      return false if product.google_merchant_availability.blank?
-      return false if product.google_merchant_price.blank?
-      return false if product.google_merchant_description.blank?
-      return false if product.google_merchant_brand.blank?
-      return false if product.google_merchant_gtin.blank?
-      return false if product.google_merchant_mpn.blank?
-      return false if product.google_merchant_shipping_weight.blank?
-      return false unless validate_upc(product.master.gtin)
-
+      #return false, "Images Invalid" if product.images.length == 0 || product.imagesize == 0
+      return false, "Title Invalid" if product.google_merchant_title.blank?
+      return false, "Category Invalid" if product.google_merchant_product_category.blank?
+      return false, "No Availablity" if product.google_merchant_availability.blank?
+      return false, "Price Invalid" if product.google_merchant_price.blank?
+      return false, "Description Invalid" if product.google_merchant_description.blank?
+      return false, "Brand Invalid" if product.google_merchant_brand.blank?
+      return false, "GTIN Invalid" if product.google_merchant_gtin.blank?
+      return false, "SKU Invalid" if product.google_merchant_mpn.blank?
+      return false, "Shipping Weight Invalid" if product.google_merchant_shipping_weight.blank?
+      return false, "UPC Invalid" unless validate_upc(product.master.gtin)
       unless product.google_merchant_sale_price.blank?
-        return false if product.google_merchant_sale_price_effective.blank?
+        return false, "Invalid sale price" if product.google_merchant_sale_price_effective.blank?
       end
-
-      true
     end
 
     def generate_xml output
@@ -114,8 +111,12 @@ module SpreeGoogleMerchant
           build_meta(xml)
 
           ar_scope.find_each(:batch_size => 300) do |product|
-            next unless validate_record(product)
-            build_product(xml, product)
+              valid, msg = validate_record(product)
+              if valid
+                build_product(xml, product)
+              else
+                puts "#{product.name} Failed: #{msg}"
+              end
           end
         end
       end
