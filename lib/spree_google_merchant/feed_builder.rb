@@ -58,15 +58,15 @@ module SpreeGoogleMerchant
         generate_xml file
       end
 
-      Zlib::GzipWriter.open("#{path}.gz") do |gz|
-        gz.mtime = File.mtime(path)
-        gz.orig_name = path
-        gz.write IO.binread(path)
-      end
     end
 
     def generate_and_transfer_store
-      generate_store
+      delete_xml_if_exists
+
+      File.open(path, 'w') do |file|
+        generate_xml file
+      end
+
       transfer_xml
       cleanup_xml
     end
@@ -76,32 +76,33 @@ module SpreeGoogleMerchant
     end
 
     def filename
-      domain = (@store.try(:code)) ? "_#{@store.try(:code)}" : ''
-      "google_merchant#{domain}.xml"
+      "google_merchant_v#{@store.try(:code)}.xml"
     end
 
     def delete_xml_if_exists
       File.delete(path) if File.exists?(path)
-      File.delete("#{path}.gz") if File.exists?("#{path}.gz")
     end
 
     def validate_record(product)
-      #return false, "Images Invalid" if product.images.length == 0 || product.imagesize == 0
-      return false, "Title Invalid" if product.google_merchant_title.blank?
-      return false, "Category Invalid" if product.google_merchant_product_category.blank?
-      return false, "No Availablity" if product.google_merchant_availability.blank?
-      return false, "Price Invalid" if product.google_merchant_price.blank?
-      return false, "Description Invalid" if product.google_merchant_description.blank?
-      return false, "Brand Invalid" if product.google_merchant_brand.blank?
-      return false, "GTIN Invalid" if product.google_merchant_gtin.blank?
-      return false, "SKU Invalid" if product.google_merchant_mpn.blank?
-      return false, "Shipping Weight Invalid" if product.google_merchant_shipping_weight.blank?
-      return false, "UPC Invalid" unless validate_upc(product.master.gtin)
-      unless product.google_merchant_sale_price.blank?
-        return false, "Invalid sale price" if product.google_merchant_sale_price_effective.blank?
-      end
-    end
+      return false if product.images.length == 0 && product.imagesize == 0 rescue true
+      return false if product.google_merchant_title.nil?
+      return false if product.google_merchant_product_category.nil?
+      return false if product.google_merchant_availability.nil?
+      return false if product.google_merchant_price.nil?
+      #return false if product.google_merchant_description.nil?
+      return false if product.google_merchant_brand.nil?
+      return false if product.google_merchant_gtin.nil?
+      return false if product.google_merchant_mpn.nil?
+      #return false if product.google_merchant_shipping_weight.nil?
+      return false unless validate_upc(product.upc)
 
+      unless product.google_merchant_sale_price.nil?
+        return false if product.google_merchant_sale_price_effective.nil?
+      end
+
+      true
+    end    
+    
     def generate_xml output
       xml = Builder::XmlMarkup.new(:target => output)
       xml.instruct!
@@ -111,12 +112,8 @@ module SpreeGoogleMerchant
           build_meta(xml)
 
           ar_scope.find_each(:batch_size => 300) do |product|
-              valid, msg = validate_record(product)
-              if valid
-                build_product(xml, product)
-              else
-                puts "#{product.name} Failed: #{msg}"
-              end
+            next unless validate_record(product)
+            build_product(xml, product)
           end
         end
       end
@@ -129,7 +126,7 @@ module SpreeGoogleMerchant
       ftp = Net::FTP.new('uploads.google.com')
       ftp.passive = true
       ftp.login(Spree::GoogleMerchant::Config[:ftp_username], Spree::GoogleMerchant::Config[:ftp_password])
-      ftp.put("#{path}.gz", "#{filename}.gz")
+      ftp.put(path, filename)
       ftp.quit
     end
 
@@ -139,7 +136,7 @@ module SpreeGoogleMerchant
 
     def build_product(xml, product)
       xml.item do
-        xml.tag!('link', product_url(product.google_merchant_permalink, :host => domain))
+        xml.tag!('link', product_url(product.permalink, :host => domain))
         build_images(xml, product)
 
         GOOGLE_MERCHANT_ATTR_MAP.each do |k, v|
@@ -147,6 +144,7 @@ module SpreeGoogleMerchant
           xml.tag!(k, value.to_s) if value.present?
         end
         build_adwords_labels(xml, product)
+        build_custom_labels(xml, product)
       end
     end
 
@@ -162,13 +160,14 @@ module SpreeGoogleMerchant
     end
 
     def image_url image
-      base_url = image.attachment.url(:product)
+      base_url = image.attachment.url(:large)
       base_url = "#{domain}/#{base_url}" unless Spree::Config[:use_s3]
 
       base_url
     end
 
     def validate_upc(upc)
+      return false if upc.nil?
       digits = upc.split('')
       len = upc.length
       return false unless [8,12,13,14].include? len
@@ -180,13 +179,34 @@ module SpreeGoogleMerchant
     end
 
     # <g:adwords_labels>
-    def build_adwords_labels(xml, product)     # <g:adwords_labels>
-      return if product.property(:_gm_adwords_label).nil?
+    def build_adwords_labels(xml, product)
 
-      labels = self.property(:_gm_adwords_label).to_a
-      labels.each do |l|
+      labels = []
+
+      taxon = product.taxons.first
+      unless taxon.nil?
+        taxon.self_and_ancestors.each do |taxon|
+          labels << taxon.name
+        end
+      end
+
+      list = [:category,:group,:type,:theme,:keyword,:color,:shape,:brand,:size,:material,:for,:agegroup]
+      list.each do |prop|
+        if labels.length < 10 then
+          value = product.property(prop)
+          labels << value if value.present?
+        end
+      end
+
+
+
+      labels.slice(0..9).each do |l|
         xml.tag!('g:adwords_labels', l)
       end
+    end
+
+    def build_custom_labels(xml, product)
+      xml.tag!('g:custom_label_0', product.google_merchant_availability)
     end
 
     def build_meta(xml)
