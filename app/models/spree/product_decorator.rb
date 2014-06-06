@@ -3,7 +3,7 @@ module Spree
     scope :google_merchant_scope, includes(:taxons, {:master => :images})
 
     def google_merchant_permalink
-      self.permalink
+      self.slug
     end
 
     def google_merchant_description
@@ -69,7 +69,7 @@ module Spree
 
     # <g:gtin> 8-, 12-, or 13-digit number (UPC, EAN, JAN, or ISBN)
     def google_merchant_gtin
-      self.master.gtin rescue self.upc
+      self.master.gtin rescue "UPC"
     end
 
     # <g:mpn> Alphanumeric characters
