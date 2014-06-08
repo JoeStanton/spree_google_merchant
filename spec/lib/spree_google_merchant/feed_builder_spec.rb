@@ -29,7 +29,7 @@ describe SpreeGoogleMerchant::FeedBuilder do
         @builder.build_product(@xml, @product)
         
         @output.should include(@product.name)
-        @output.should include("products/#{@product.permalink}")
+        @output.should include("products/#{@product.slug}")
         @output.should include(@product.price.to_s)
       end
       

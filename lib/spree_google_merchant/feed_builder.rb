@@ -139,7 +139,7 @@ module SpreeGoogleMerchant
 
     def build_product(xml, product)
       xml.item do
-        xml.tag!('link', product_url(product.permalink, :host => domain))
+        xml.tag!('link', product_url(product.slug, :host => domain))
         build_images(xml, product)
 
         GOOGLE_MERCHANT_ATTR_MAP.each do |k, v|
