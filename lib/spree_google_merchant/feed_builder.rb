@@ -98,6 +98,8 @@ module SpreeGoogleMerchant
       unless product.google_merchant_sale_price.blank?
         return false, "Invalid sale price" if product.google_merchant_sale_price_effective.blank?
       end
+
+      true
     end
 
     def generate_xml output
