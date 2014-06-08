@@ -91,10 +91,10 @@ module SpreeGoogleMerchant
       return false, "Price Invalid" if product.google_merchant_price.blank?
       return false, "Description Invalid" if product.google_merchant_description.blank?
       return false, "Brand Invalid" if product.google_merchant_brand.blank?
-      return false, "GTIN Invalid" if product.google_merchant_gtin.blank?
+      #return false, "GTIN Invalid" if product.google_merchant_gtin.blank?
       return false, "SKU Invalid" if product.google_merchant_mpn.blank?
       return false, "Shipping Weight Invalid" if product.google_merchant_shipping_weight.blank?
-      return false, "UPC Invalid" unless validate_upc(product.master.gtin)
+      #return false, "UPC Invalid" unless validate_upc(product.master.gtin)
       unless product.google_merchant_sale_price.blank?
         return false, "Invalid sale price" if product.google_merchant_sale_price_effective.blank?
       end

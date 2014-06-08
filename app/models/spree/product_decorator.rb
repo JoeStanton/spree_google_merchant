@@ -68,7 +68,7 @@ module Spree
 
     # <g:gtin> 8-, 12-, or 13-digit number (UPC, EAN, JAN, or ISBN)
     def google_merchant_gtin
-      self.master.gtin rescue "UPC"
+      "UPC"
     end
 
     # <g:mpn> Alphanumeric characters
